@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Allowance</title>
+<style>
+:root{--bg:#eef2f3;--ink:#17262b;--mute:#5b6f75;--line:#c9d6d9;--ok:#0f766e;--bad:#b42318;--warn:#9a6700;--card:#fff;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1b1f;--ink:#e6eff1;--mute:#93a9af;--line:#27393f;--ok:#5eead4;--bad:#f97066;--warn:#f5c04a;--card:#16272c;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif;padding:max(1rem,env(safe-area-inset-top)) 1rem 2rem}
+main{max-width:44rem;margin:0 auto}h1{font:600 2rem/1.1 Georgia,serif;margin:1rem 0 .25rem}
+.sub{color:var(--mute);margin:0 0 1.25rem}
+.meter{background:var(--card);border:1px solid var(--line);padding:1rem;border-radius:6px}
+.bar{height:14px;background:var(--line);border-radius:7px;overflow:hidden;margin:.5rem 0}.bar i{display:block;height:100%;background:var(--ok);width:0}
+.state{font-weight:600}.frozen{color:var(--bad)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:.25rem 1rem;margin:1rem 0}dt{color:var(--mute)}dd{margin:0;word-break:break-all}
+ul{list-style:none;padding:0;margin:0}li{padding:.6rem 0;border-top:1px solid var(--line);word-break:break-word}
+li b{display:inline-block;min-width:5rem}.PAID b,.APPROVED b{color:var(--ok)}.BLOCKED b,.FROZEN b,.REJECTED b{color:var(--bad)}.QUEUED b{color:var(--warn)}.pend{border:1px solid var(--warn);border-radius:6px;padding:.6rem .8rem;margin:.5rem 0;background:var(--card)}
+input{font:inherit;padding:.4rem;width:100%;border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--ink)}
+button{font:inherit;padding:.4rem .9rem;margin-top:.5rem}:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
+</style></head><body><main>
+<h1>Agent Allowance</h1><p class="sub">What your AI agent is allowed to spend, what the contract refused, and what is waiting for a human. NEAR testnet.</p>
+<label>Contract account<input id="c" placeholder="allowance.yourname.testnet"></label><button id="go">Load</button>
+<p id="err" role="alert" class="frozen"></p>
+<section class="meter" id="m" hidden>
+<div class="state" id="st"></div><div class="bar"><i id="b"></i></div><div id="sp"></div>
+<dl id="d"></dl></section>
+<h2>Waiting for approval</h2><ul id="pend"><li>Nothing yet.</li></ul>
+<h2>Waiting for your approval</h2><div id="pend"><p>Nothing waiting.</p></div>
+<h2>Activity</h2><ul id="log"><li>Enter a contract account to see activity.</li></ul>
+<script>
+const RPC='https://test.rpc.fastnear.com', N=x=>(Number(BigInt(x)/10n**20n)/1e4);
+const q=new URLSearchParams(location.search);const c=document.getElementById('c');c.value=q.get('c')||'';
+async function view(id,m){const r=await fetch(RPC,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'query',params:{request_type:'call_function',finality:'final',account_id:id,method_name:m,args_base64:btoa('{}')}})});
+const j=await r.json();if(j.error||j.result?.error)throw new Error(j.result?.error||j.error.data||'RPC error');return JSON.parse(new TextDecoder().decode(new Uint8Array(j.result.result)))}
+async function load(){const id=c.value.trim();if(!id)return;err.textContent='';
+try{const [p,l,w]=await Promise.all([view(id,'get_policy'),view(id,'get_log'),view(id,'get_pending')]);
+m.hidden=false;st.textContent=p.paused?'Frozen: no payments will go out':'Active';st.className='state'+(p.paused?' frozen':'');
+b.style.width=Math.min(100,N(p.spent_today)/N(p.daily)*100)+'%';sp.textContent=`${N(p.spent_today)} of ${N(p.daily)} NEAR spent today. Per-payment cap ${N(p.per_tx)} NEAR.`;
+d.innerHTML=`<dt>Treasury</dt><dd>${N(p.balance)} NEAR</dd><dt>Agent</dt><dd>${p.agent}</dd><dt>Guardian</dt><dd>${p.guardian}</dd><dt>Trusted payees</dt><dd>${p.payees.map(a=>a+(p.caps&&p.caps[a]?' (max '+N(p.caps[a])+' NEAR)':'')).join(', ')||'none'}</dd><dt>Blocked</dt><dd>${(p.blocked||[]).join(', ')||'none'}</dd>`;
+pend.innerHTML=w.filter(x=>x.status==='pending').reverse().map(x=>{const li=document.createElement('li');li.className='BLOCKED';const bb=document.createElement('b');bb.textContent='#'+x.id;li.append(bb,document.createTextNode(` ${N(x.amount)} NEAR to ${x.to} (${x.memo}). Waiting for the owner.`));return li.outerHTML}).join('')||'<li>Nothing waiting.</li>';
+log.innerHTML=l.slice().reverse().map(e=>{const [t,...r]=e.split('|');const s=r.join('|');const k=s.split(' ')[0].replace(':','');
+const li=document.createElement('li');li.className=k;const bb=document.createElement('b');bb.textContent=k;li.append(bb,document.createTextNode(s.slice(k.length)));return li.outerHTML}).join('')||'<li>No activity yet.</li>'}
+catch(e){err.textContent='Could not load that contract: '+e.message}}
+go.onclick=load;if(c.value)load();
+</script></main></body></html>

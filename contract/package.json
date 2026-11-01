@@ -1,0 +1,8 @@
+{
+  "name": "agent-allowance-contract",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": { "build": "near-sdk-js build src/contract.ts build/allowance.wasm" },
+  "dependencies": { "near-sdk-js": "2.0.0" },
+  "devDependencies": { "typescript": "^5.4.0" }
+}
