@@ -7,6 +7,11 @@ const ks = new keyStores.InMemoryKeyStore();
 for (const [id, k] of [[E.OWNER_ID, E.OWNER_KEY], [E.AGENT_ID, E.AGENT_KEY], [E.GUARDIAN_ID, E.GUARDIAN_KEY]])
   await ks.setKey('testnet', id, KeyPair.fromString(k));
 const near = await connect({ networkId: 'testnet', nodeUrl: E.NEAR_RPC || 'https://test.rpc.fastnear.com', keyStore: ks });
+const _st = await (await near.account(E.CONTRACT_ID)).state();
+const _spendable = BigInt(_st.amount) - BigInt(_st.storage_usage) * 10n ** 19n;
+console.log(`Treasury spendable balance: ${utils.format.formatNearAmount(_spendable.toString())} NEAR`);
+if (_spendable < 3n * 10n ** 24n) throw new Error('Treasury is too low to run this demo. Add funds first: node --env-file=../.env fund.mjs approver2 4');
+
 const call = async (who, method, args) =>
   (await (await near.account(who)).functionCall({ contractId: E.CONTRACT_ID, methodName: method, args, gas: 100000000000000n })).transaction.hash;
 const view = async (m) => (await near.account(E.OWNER_ID)).viewFunction({ contractId: E.CONTRACT_ID, methodName: m, args: {} });

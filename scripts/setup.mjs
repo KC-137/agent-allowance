@@ -40,10 +40,22 @@ await ownerCall('set_limits', { per_tx: nearAmt(2), daily: nearAmt(5), approval_
 console.log('Making sure the vendor is trusted (max 1.5 NEAR per payment)...');
 await ownerCall('add_payee', { account: E.PAYEE_ID, cap: nearAmt(1.5) });
 
-policy = await view('get_policy');
-if (BigInt(policy.balance) < BigInt(nearAmt(3))) {
-  console.log('Funding treasury with 5 NEAR...');
-  await owner.sendMoney(E.CONTRACT_ID, BigInt(nearAmt(5)));
+if (E.APPROVER2_ID) {
+  console.log(`Adding ${E.APPROVER2_ID} as a second approver (one approval still enough by default)...`);
+  await ownerCall('set_approvers', { accounts: [E.APPROVER2_ID], required: 1 });
+}
+
+// A contract's stored code locks a refundable deposit (about 1 NEAR per 100 KB), so only the rest is spendable.
+const st = await contract.state();
+const spendable = BigInt(st.amount) - BigInt(st.storage_usage) * 10n ** 19n;
+const fmt = (y) => utils.format.formatNearAmount(y.toString());
+console.log(`Treasury spendable balance: ${fmt(spendable)} NEAR`);
+const want = BigInt(nearAmt(5));
+if (spendable < want) {
+  const top = want - spendable + BigInt(nearAmt(0.2));
+  console.log(`Topping up ${fmt(top)} NEAR from the owner...`);
+  try { await owner.sendMoney(E.CONTRACT_ID, top); }
+  catch (e) { console.log(`Could not top up from the owner (${e.type || e.message}). Use: node --env-file=../.env fund.mjs approver2 4`); }
 }
 
 console.log('Policy:', await view('get_policy'));

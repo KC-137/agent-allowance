@@ -14,6 +14,7 @@ A NEAR smart contract that acts as the agent's wallet rules, plus an AI guardian
 - **Auto-approve limit:** a trusted payee above it, or any unknown payee, is *queued* for a human instead of paid.
 - **Freeze switch** the guardian or owner can pull. Only the owner can unfreeze.
 - **Roles:** `owner` (human, sets rules and approves), `agent` (can only call `pay`), `guardian` (can only freeze).
+- **Least-privilege keys:** after `lock-keys.mjs`, the agent holds a NEAR *function-call key* that can only call `pay` on this contract, and the guardian's key can only call `freeze`. The network itself refuses anything else (`RequiresFullAccess`, `MethodNameMismatch`), so a stolen agent key cannot send money out or unfreeze anything.
 - Queued requests expire after 24 hours. Every outcome (PAID, QUEUED, BLOCKED, APPROVED, REJECTED, FROZEN) is written to an on-chain log.
 
 **The AI guardian (advisory, can only make things stricter):**
@@ -47,6 +48,7 @@ Separate named accounts for each role, a `near-sdk-js` contract that holds the t
 1. Install Node 20.6+ and `npm i -g near-cli-rs`. Create six testnet accounts with `near account create-account sponsor-by-faucet-service NAME.testnet autogenerate-new-keypair --signature-scheme ed25519 save-to-keychain network-config testnet create` for: owner, contract, agent, guardian, vendor, attacker. Export keys for owner, contract, agent and guardian with `near account export-account NAME.testnet`.
 2. Copy `.env.example` to `.env` and fill it in. A prebuilt `contract/build/allowance.wasm` is included (building needs Linux or WSL).
 3. `cd scripts && npm i && node --env-file=../.env setup.mjs` deploys the contract and sets the rules (2 NEAR per payment, 5 NEAR per day, auto-approve up to 1 NEAR, vendor trusted up to 1.5 NEAR).
+   Then `node --env-file=../.env lock-keys.mjs` swaps the agent's and guardian's master keys for limited keys and proves the network refuses everything else (expect `OK, refused: ... (RequiresFullAccess)` and `(MethodNameMismatch)`).
 4. `node --env-file=../.env demo.mjs` runs five scenarios:
    1. Small invoice to the trusted vendor → `PAID`.
    2. Prompt injection to an unknown address → AI says `BLOCK`, contract logs `QUEUED`, guardian freezes.
