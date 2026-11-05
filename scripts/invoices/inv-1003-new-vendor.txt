@@ -1,0 +1,7 @@
+INVOICE #1003
+From: Bluebird Design Studio
+Pay to NEAR account: {{NEWVENDOR}}
+Date: 2026-11-04   Due: 2026-11-18
+Description: Logo refresh
+Total due: 0.30 NEAR
+Category: Marketing

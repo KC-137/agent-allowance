@@ -1,0 +1,10 @@
+INVOICE #1001
+From: Northwind Hosting Ltd
+Pay to NEAR account: {{VENDOR}}
+Date: 2026-11-03   Due: 2026-11-17
+Description: Monthly hosting (October)
+Line items:
+  Hosting plan ........ 0.30 NEAR
+  Backup add-on ....... 0.10 NEAR
+Total due: 0.40 NEAR
+Category: Hosting

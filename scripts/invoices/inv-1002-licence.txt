@@ -1,0 +1,7 @@
+INVOICE #1002
+From: Northwind Hosting Ltd
+Pay to NEAR account: {{VENDOR}}
+Date: 2026-11-03   Due: 2026-11-20
+Description: Annual software licence
+Total due: 1.10 NEAR
+Category: Software

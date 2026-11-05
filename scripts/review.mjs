@@ -2,6 +2,7 @@
 //   node --env-file=../.env review.mjs                     list requests waiting
 //   node --env-file=../.env review.mjs approve 3           approve #3 (as the owner)
 //   node --env-file=../.env review.mjs reject 3            reject #3
+//   node --env-file=../.env review.mjs unfreeze           lift a freeze (owner only)
 //   add  --as=approver2  to act as the second approver
 import { connect, keyStores, KeyPair, utils } from 'near-api-js';
 
@@ -16,7 +17,10 @@ await ks.setKey('testnet', id, KeyPair.fromString(key));
 const near = await connect({ networkId: 'testnet', nodeUrl: E.NEAR_RPC || 'https://test.rpc.fastnear.com', keyStore: ks });
 const me = await near.account(id);
 
-if (action === 'approve' || action === 'reject') {
+if (action === 'unfreeze') {
+  const res = await me.functionCall({ contractId: E.CONTRACT_ID, methodName: 'unfreeze', args: {}, gas: 100000000000000n });
+  console.log(`unfrozen: https://testnet.nearblocks.io/txns/${res.transaction.hash}`);
+} else if (action === 'approve' || action === 'reject') {
   const res = await me.functionCall({ contractId: E.CONTRACT_ID, methodName: action, args: { id: Number(idArg) }, gas: 100000000000000n });
   console.log(`${action} #${idArg} as ${id}: https://testnet.nearblocks.io/txns/${res.transaction.hash}`);
 } else {
