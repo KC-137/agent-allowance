@@ -1,0 +1,18 @@
+[
+  {
+    "path": "/api/quote",
+    "price_near": "0.05",
+    "tx": "Apt8aPwo4f9XWy5oJVJQVNeywBDqj7ZWYsFVNNxH4MEv",
+    "status": 200,
+    "delivered": true,
+    "at": "2026-11-05T15:38:11.764Z"
+  },
+  {
+    "path": "/api/premium",
+    "price_near": "1.8",
+    "tx": "D43ydAL8ETGdb5gJAAYyDVtZauEuthaXrPtC34K2Hywx",
+    "status": 402,
+    "delivered": false,
+    "at": "2026-11-05T15:38:18.358Z"
+  }
+]
