@@ -52,8 +52,10 @@ for (const role of ROLES) {
   await mustBeRefused(`call ${role.forbidden.methodName}`, () => limited.functionCall({ contractId: E.CONTRACT_ID, methodName: role.forbidden.methodName, args: role.forbidden.args, gas }));
 
   if (role.name === 'agent') {
-    await limited.functionCall({ contractId: E.CONTRACT_ID, methodName: 'pay', gas,
-      args: { to: E.PAYEE_ID, amount: utils.format.parseNearAmount('0.01'), memo: 'limited-key test' } });
+    await limited.functionCall({
+      contractId: E.CONTRACT_ID, methodName: 'pay', gas,
+      args: { to: E.PAYEE_ID, amount: utils.format.parseNearAmount('0.01'), memo: 'limited-key test' }
+    });
     console.log(`  OK, allowed: pay  -> contract says: ${await readLog()}`);
   } else {
     await limited.functionCall({ contractId: E.CONTRACT_ID, methodName: 'freeze', gas, args: { reason: 'limited-key test' } });

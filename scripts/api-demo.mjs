@@ -73,8 +73,10 @@ const server = http.createServer(async (req, res) => {
     const nonce = crypto.randomBytes(8).toString('hex');
     const offer = { payTo: E.PAYEE_ID, yocto: toYocto(product.price), memo: `api:${nonce}` };
     offers.set(nonce, offer);
-    return send(402, { error: 'Payment Required', price_near: product.price, price_yocto: offer.yocto,
-      pay_to: offer.payTo, via_contract: E.CONTRACT_ID, memo: offer.memo, nonce });
+    return send(402, {
+      error: 'Payment Required', price_near: product.price, price_yocto: offer.yocto,
+      pay_to: offer.payTo, via_contract: E.CONTRACT_ID, memo: offer.memo, nonce
+    });
   }
   const [hash, nonce] = String(pay).split(':');
   const v = await verifyPayment(hash, nonce);

@@ -2,17 +2,17 @@
   {
     "path": "/api/quote",
     "price_near": "0.05",
-    "tx": "Apt8aPwo4f9XWy5oJVJQVNeywBDqj7ZWYsFVNNxH4MEv",
+    "tx": "JAxefw4X91vWF1tnLBRvYqkiETwA5DATAXnL1NJUo4Xr",
     "status": 200,
     "delivered": true,
-    "at": "2026-11-05T15:38:11.764Z"
+    "at": "2026-11-07T15:12:16.326Z"
   },
   {
     "path": "/api/premium",
     "price_near": "1.8",
-    "tx": "D43ydAL8ETGdb5gJAAYyDVtZauEuthaXrPtC34K2Hywx",
+    "tx": "DBmyZHrTmPhZH3w6aD2BDwZoKZvV494dSnmac7stVwKM",
     "status": 402,
     "delivered": false,
-    "at": "2026-11-05T15:38:18.358Z"
+    "at": "2026-11-07T15:12:21.575Z"
   }
 ]

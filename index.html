@@ -1,43 +1,140 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Agent Allowance</title>
-<style>
-:root{--bg:#eef2f3;--ink:#17262b;--mute:#5b6f75;--line:#c9d6d9;--ok:#0f766e;--bad:#b42318;--warn:#9a6700;--card:#fff;color-scheme:light}
-@media(prefers-color-scheme:dark){:root{--bg:#0f1b1f;--ink:#e6eff1;--mute:#93a9af;--line:#27393f;--ok:#5eead4;--bad:#f97066;--warn:#f5c04a;--card:#16272c;color-scheme:dark}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif;padding:max(1rem,env(safe-area-inset-top)) 1rem 2rem}
-main{max-width:44rem;margin:0 auto}h1{font:600 2rem/1.1 Georgia,serif;margin:1rem 0 .25rem}
-.sub{color:var(--mute);margin:0 0 1.25rem}
-.meter{background:var(--card);border:1px solid var(--line);padding:1rem;border-radius:6px}
-.bar{height:14px;background:var(--line);border-radius:7px;overflow:hidden;margin:.5rem 0}.bar i{display:block;height:100%;background:var(--ok);width:0}
-.state{font-weight:600}.frozen{color:var(--bad)}
-dl{display:grid;grid-template-columns:auto 1fr;gap:.25rem 1rem;margin:1rem 0}dt{color:var(--mute)}dd{margin:0;word-break:break-all}
-ul{list-style:none;padding:0;margin:0}li{padding:.6rem 0;border-top:1px solid var(--line);word-break:break-word}
-li b{display:inline-block;min-width:5rem}.PAID b,.APPROVED b{color:var(--ok)}.BLOCKED b,.FROZEN b,.REJECTED b{color:var(--bad)}.QUEUED b{color:var(--warn)}.pend{border:1px solid var(--warn);border-radius:6px;padding:.6rem .8rem;margin:.5rem 0;background:var(--card)}
-input{font:inherit;padding:.4rem;width:100%;border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--ink)}
-button{font:inherit;padding:.4rem .9rem;margin-top:.5rem}:focus-visible{outline:3px solid var(--ok);outline-offset:2px}
-</style></head><body><main>
-<h1>Agent Allowance</h1><p class="sub">What your AI agent is allowed to spend, what the contract refused, and what is waiting for a human. NEAR testnet.</p>
-<label>Contract account<input id="c" placeholder="allowance.yourname.testnet"></label><button id="go">Load</button>
-<p id="err" role="alert" class="frozen"></p>
-<section class="meter" id="m" hidden>
-<div class="state" id="st"></div><div class="bar"><i id="b"></i></div><div id="sp"></div>
-<dl id="d"></dl></section>
-<h2>Waiting for approval</h2><ul id="pend"><li>Nothing yet.</li></ul>
-<h2>Waiting for your approval</h2><div id="pend"><p>Nothing waiting.</p></div>
-<h2>Activity</h2><ul id="log"><li>Enter a contract account to see activity.</li></ul>
-<script>
-const RPC='https://test.rpc.fastnear.com', N=x=>(Number(BigInt(x)/10n**20n)/1e4);
-const q=new URLSearchParams(location.search);const c=document.getElementById('c');c.value=q.get('c')||'';
-async function view(id,m){const r=await fetch(RPC,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'query',params:{request_type:'call_function',finality:'final',account_id:id,method_name:m,args_base64:btoa('{}')}})});
-const j=await r.json();if(j.error||j.result?.error)throw new Error(j.result?.error||j.error.data||'RPC error');return JSON.parse(new TextDecoder().decode(new Uint8Array(j.result.result)))}
-async function load(){const id=c.value.trim();if(!id)return;err.textContent='';
-try{const [p,l,w]=await Promise.all([view(id,'get_policy'),view(id,'get_log'),view(id,'get_pending')]);
-m.hidden=false;st.textContent=p.paused?'Frozen: no payments will go out':'Active';st.className='state'+(p.paused?' frozen':'');
-b.style.width=Math.min(100,N(p.spent_today)/N(p.daily)*100)+'%';sp.textContent=`${N(p.spent_today)} of ${N(p.daily)} NEAR spent today. Per-payment cap ${N(p.per_tx)} NEAR.`;
-d.innerHTML=`<dt>Treasury</dt><dd>${N(p.balance)} NEAR</dd><dt>Agent</dt><dd>${p.agent}</dd><dt>Guardian</dt><dd>${p.guardian}</dd><dt>Trusted payees</dt><dd>${p.payees.map(a=>a+(p.caps&&p.caps[a]?' (max '+N(p.caps[a])+' NEAR)':'')).join(', ')||'none'}</dd><dt>Blocked</dt><dd>${(p.blocked||[]).join(', ')||'none'}</dd>`;
-pend.innerHTML=w.filter(x=>x.status==='pending').reverse().map(x=>{const li=document.createElement('li');li.className='BLOCKED';const bb=document.createElement('b');bb.textContent='#'+x.id;li.append(bb,document.createTextNode(` ${N(x.amount)} NEAR to ${x.to} (${x.memo}). Waiting for the owner.`));return li.outerHTML}).join('')||'<li>Nothing waiting.</li>';
-log.innerHTML=l.slice().reverse().map(e=>{const [t,...r]=e.split('|');const s=r.join('|');const k=s.split(' ')[0].replace(':','');
-const li=document.createElement('li');li.className=k;const bb=document.createElement('b');bb.textContent=k;li.append(bb,document.createTextNode(s.slice(k.length)));return li.outerHTML}).join('')||'<li>No activity yet.</li>'}
-catch(e){err.textContent='Could not load that contract: '+e.message}}
-go.onclick=load;if(c.value)load();
-</script></main></body></html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Allowance · Mission Control</title>
+<!-- index.html v8 (markup only; styles in styles.css, logic in app.js). Reads the NEAR testnet live. No keys. -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<div id="toasts"></div>
+<div class="app">
+<aside class="card">
+ <div class="logo"><img id="brand" src="logo.svg" alt="Agent Allowance" width="34" height="34">Allowance</div>
+ <nav>
+  <button class="on" data-v="home"><i data-ic="grid"></i>Overview</button>
+  <button data-v="inbox"><i data-ic="mail"></i>Approvals <span id="pc"></span></button>
+  <button data-v="act"><i data-ic="activity"></i>Activity</button>
+  <button data-v="lab"><i data-ic="shield"></i>Attack lab</button>
+  <button class="run" data-v="ctl"><i data-ic="play"></i>Control</button>
+  <button class="run" data-v="led"><i data-ic="table"></i>Ledger</button>
+  <button class="run" data-v="rec"><i data-ic="receipt"></i>API receipts</button>
+  <button data-v="raw"><i data-ic="terminal"></i>Backend</button>
+ </nav>
+ <div class="side-foot">NEAR testnet · live<br><span id="upd">connecting…</span><br><span id="rs">Runner: checking…</span><br><button class="act ghost" id="theme" style="margin-top:8px"></button> <button class="act ghost run" id="aitag" style="margin-top:8px">AI status</button></div>
+</aside>
+<main>
+ <header>
+  <h1>Mission Control<small>The AI advises. The contract enforces.</small></h1>
+  <span style="display:flex;gap:10px;align-items:center"><button class="act ghost run" id="editbtn"><i data-ic="sliders"></i>Edit rules</button><span class="pill ok" id="status">LOADING</span></span>
+ </header>
+ <div class="warn" id="lowfund"></div>
+
+ <section class="view on" id="v-home">
+  <div class="grid">
+   <div class="card hero">
+    <div class="sub">Treasury</div>
+    <div class="big" id="bal">—</div>
+    <div class="sub">Held by <span class="mono" style="color:inherit" id="cid"></span></div>
+    <div class="sub" style="margin-top:22px">The agent can request payments. It cannot withdraw.</div>
+   </div>
+   <div class="card ring">
+    <svg viewBox="0 0 120 120"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a5cff"/><stop offset="1" stop-color="#5dffb0"/></linearGradient></defs>
+     <circle cx="60" cy="60" r="50" fill="none" stroke="#ffffff14" stroke-width="12"/>
+     <circle id="arc" cx="60" cy="60" r="50" fill="none" stroke="url(#g)" stroke-width="12" stroke-linecap="round" stroke-dasharray="0 315" transform="rotate(-90 60 60)" style="transition:.8s"/>
+     <text x="60" y="55" text-anchor="middle" fill="#fff" font-size="22" font-weight="800" id="pct">0%</text>
+     <text text-anchor="middle" fill="#8f98c4" font-size="8" letter-spacing=".5"><tspan x="60" y="75">OF TODAY'S</tspan><tspan x="60" y="85">BUDGET</tspan></text></svg>
+    <div class="mono" id="spent"></div>
+   </div>
+   <div class="card rule"><div class="lab">Max per payment</div><div class="val" id="r1">—</div><small>Hard cap.</small></div>
+   <div class="card rule"><div class="lab">Auto-approve limit</div><div class="val" id="r2">—</div><small>Above this, a human decides.</small></div>
+   <div class="card rule"><div class="lab">Daily budget</div><div class="val" id="r3">—</div><small>Total per day.</small></div>
+   <div class="card rule"><div class="lab">Approvals needed</div><div class="val" id="r4">—</div><small>To release a held payment.</small></div>
+   <div class="card half"><div class="lab">Trusted vendors</div><p class="hint">Paid without asking, up to each limit.</p><div id="vend"></div></div>
+   <div class="card half"><div class="lab">Approvers</div><p class="hint">Can release held payments.</p><div id="appr"></div></div>
+   <div class="card" style="grid-column:span 12"><div class="lab">How it works</div>
+    <div class="steps">
+     <div class="step"><b>1 · Request</b>The agent asks the contract to pay.</div>
+     <div class="step"><b>2 · Check</b>Trusted and small: paid. Unknown or large: held. Over a limit: refused.</div>
+     <div class="step"><b>3 · Decide</b>A human approves or rejects held payments.</div>
+     <div class="step"><b>4 · Guard</b>If something looks like an attack, the guardian freezes everything.</div>
+    </div>
+    <p class="hint" style="margin-top:12px">Ⓝ is the NEAR token. Testnet money is for practice.</p></div>
+  </div>
+ </section>
+
+ <section class="view" id="v-inbox"><div class="card"><div class="lab">Waiting for a human</div><p class="hint" style="margin:6px 0 12px">Approve to send the money, reject to cancel.</p><div class="tl" id="pend"></div></div></section>
+
+ <section class="view" id="v-act"><div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div class="lab">Activity · newest first</div><span style="display:flex;gap:8px"><button class="act ghost" id="clr">Clear view</button><button class="act ghost" id="unclr" style="display:none">Show all</button></span></div><p class="hint" style="margin:6px 0 12px">Every decision, recorded on-chain.</p><div class="tl" id="log"></div><div class="pager" id="pg"></div>
+  <p class="mono" style="margin-top:14px">Latest 50 events are kept. <a class="lnk" id="exp" target="_blank" rel="noopener">View on NearBlocks</a></p></div></section>
+
+ <section class="view" id="v-lab">
+  <div class="card"><div class="lab">Recorded attacks <span class="chip go">REPLAY</span></div><p class="hint" style="margin:6px 0 12px">Real events from the on-chain log. Pick one to replay.</p><div class="btns" id="atk"></div></div>
+  <div class="card" id="ascr"><div class="empty">Pick an attack above to replay it here.</div></div>
+  <div class="card"><div class="lab">Try your own attack <span class="chip ok">LIVE</span></div><p class="hint" style="margin:6px 0 12px">Uses the shared rules.json, the same free rules as the real screening. No AI, nothing is sent.</p>
+   <textarea id="atx" rows="6" placeholder="Paste an invoice or message…"></textarea>
+   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="act" id="ajudge">Check it</button><button class="act ghost" id="asample">Load a poisoned invoice</button></div><div id="aout" style="margin-top:12px"></div></div>
+ </section>
+
+ <section class="view" id="v-ctl"><div class="card"><div class="lab">Run a scenario</div><p class="hint" style="margin:6px 0 12px">Live on testnet. Watch Activity update.</p><div class="btns" id="btns"></div></div></section>
+ <section class="view" id="v-led"><div class="card"><div class="lab">Ledger · invoices handled</div><div class="tw" id="ledt"></div><div class="pager" id="ledpg"></div></div></section>
+ <section class="view" id="v-rec"><div class="card"><div class="lab">API receipts · paid requests</div><div class="tw" id="rect"></div><div class="pager" id="recpg"></div></div></section>
+
+ <section class="view" id="v-raw"><div class="card"><div class="lab">Backend · raw chain data</div>
+  <div class="lab" style="margin-top:12px">get_policy</div><pre id="raw"></pre><div class="lab">get_pending</div><pre id="rawp"></pre><div class="lab">get_log</div><pre id="rawl"></pre></div></section>
+</main></div>
+
+<div id="funds" class="card">
+ <div class="ch"><b>Funds</b><span style="flex:1"></span><button class="act" id="fx">Close</button></div>
+ <p class="hint">Live balances. Practice money.</p>
+ <div id="fbal"></div>
+ <div class="lab" style="margin-top:18px">Move funds</div>
+ <div class="frm">
+  <select id="ffrom"><option value="vendor">From: Vendor</option><option value="attacker">From: Attacker</option><option value="approver2">From: Approver 2</option><option value="owner">From: Owner</option></select>
+  <select id="fto"><option value="treasury">To: Treasury</option><option value="owner">To: Owner</option><option value="approver2">To: Approver 2</option><option value="vendor">To: Vendor</option><option value="attacker">To: Attacker</option><option value="custom">To: another account…</option></select>
+  <input type="text" id="fcustom" class="fi" placeholder="name.testnet" style="display:none">
+  <input type="text" id="famt" class="fi" placeholder="Amount in NEAR, e.g. 2">
+  <label class="hint"><input type="checkbox" id="fall"> Everything (keeps 0.05 for fees)</label>
+  <button class="act" id="fgo">Move funds</button>
+ </div>
+ <p class="hint" style="margin-top:12px">Needs the source key in .env (VENDOR_KEY, ATTACKER_KEY…).</p>
+</div>
+
+<div id="aipanel" class="card">
+ <div class="ch"><b>AI screening</b><span style="flex:1"></span><button class="act ghost" id="aitest">Test now</button><button class="act" id="aix">Close</button></div>
+ <p class="hint" id="aisum" style="margin:6px 0 10px">Loading…</p><div id="aipv"></div>
+ <div class="lab" style="margin-top:12px" id="aibl"></div><div class="meter"><i id="aibar" style="width:0"></i></div>
+ <p class="hint" style="margin-top:10px">Advisory only. The contract enforces every limit either way.</p>
+</div>
+
+<div id="rules" class="card">
+ <div class="ch"><b>Edit rules</b><span style="flex:1"></span><button class="act" id="ex">Close</button></div>
+ <p class="hint">Owner-only. Each change is one testnet transaction.</p>
+ <div class="lab" style="margin-top:14px">Limits (NEAR)</div>
+ <div class="frm">
+  <label class="hint">Max per payment<input type="text" class="fi" id="ed_per"></label>
+  <label class="hint">Auto-approve limit<input type="text" class="fi" id="ed_auto"></label>
+  <label class="hint">Daily budget<input type="text" class="fi" id="ed_day"></label>
+  <button class="act" id="ed_go">Apply limits</button>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="act ghost" id="ed_hr">Demo headroom: daily 50</button><button class="act ghost" id="ed_hn">Back to daily 5</button></div>
+  <p class="hint">Raises the daily ceiling for a fresh demo. It does not zero today's spending.</p>
+ </div>
+ <div class="lab" style="margin-top:18px">Approvals</div>
+ <div class="frm">
+  <label class="hint">Approvals needed<input type="text" class="fi" id="ed_req"></label>
+  <label class="hint">Approver accounts (comma separated)<input type="text" class="fi" id="ed_apr"></label>
+  <button class="act" id="ed_ap">Apply approvals</button>
+ </div>
+ <div class="lab" style="margin-top:18px">Trusted vendors</div>
+ <div id="ed_vend"></div>
+ <div class="frm">
+  <input type="text" class="fi" id="ed_vacc" placeholder="vendor.testnet">
+  <input type="text" class="fi" id="ed_vcap" placeholder="Max per payment in NEAR (optional)">
+  <button class="act" id="ed_vgo">Add or update vendor</button>
+ </div>
+</div>
+
+<div id="con" class="card"><div class="ch"><b id="ct"></b><span class="chip go" id="cst"></span><span style="flex:1"></span><button class="act ghost" id="cstop" style="display:none">Stop</button><button class="act ghost" id="ctg">Technical output</button><button class="act" id="cx">Hide</button></div><p class="hint" id="cs"></p><pre id="co" class="hide"></pre></div>
+<script src="app.js"></script>
+</body></html>

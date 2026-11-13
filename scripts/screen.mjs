@@ -13,15 +13,40 @@ const TIMEOUT = Number(E.AI_TIMEOUT_MS || 10000);
 export const ORDER = (E.AI_PROVIDERS || 'gemini,groq,cloudflare,openrouter').split(',').map((s) => s.trim()).filter(Boolean);
 
 // ---------- Layer 1: free rules (no API calls) ----------
-const RULES = [
-  [/ignore (all |any |the )?(previous |prior |above )?(rules|instructions|policy|limits)/i, 'tries to override rules'],
-  [/(send|transfer|drain|empty) (all|everything|the entire|the whole)/i, 'asks to move everything'],
+const BUILTIN_RULES = [
+  [/ignore (all |any |the |your |my )?(previous |prior |above |earlier )?(rules|instructions|policy|limits)/i, 'tries to override rules'],
+  [/(send|transfer|drain|empty|withdraw) (all|everything|the entire|the whole|my entire|your entire|the remaining)/i, 'asks to move everything'],
   [/disregard|jailbreak|developer mode|system prompt|you are now/i, 'jailbreak phrasing'],
   [/seed phrase|private key|secret key|mnemonic/i, 'asks for secrets'],
+  [/do not (tell|inform|notify|alert) (the )?(owner|user|human|anyone)/i, 'asks to hide actions'],
+  [/(bypass|skip|disable) (the )?(approval|limits?|checks?|review|guardian)/i, 'asks to bypass controls'],
   [/(urgent|immediately|asap).*(wire|transfer|send|pay)/i, 'urgency pressure'],
   [/[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/, 'hidden unicode characters'],
   [/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/, 'control characters'],
 ];
+// Shared rule list: ../rules.json (also read by the dashboard). Falls back to the built-in list above if missing or broken.
+export function compileRules(cfg) {
+  const out = [];
+  const add = (src, flags, why) => { try { out.push([new RegExp(src, flags), why]); } catch (e) { console.warn(`  (skipped bad rule "${why}": ${e.message})`); } };
+  for (const p of cfg.phrases || []) {
+    const t = String(p.text || '').trim(); if (!t) continue;
+    const body = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+    add((/^\w/.test(t) ? '\\b' : '') + body + (/\w$/.test(t) ? '\\b' : ''), 'i', p.why);
+  }
+  for (const p of cfg.patterns || []) add(p.regex, p.flags || '', p.why);
+  return out;
+}
+function loadRules() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'rules.json'), 'utf8'));
+    const rules = compileRules(cfg);
+    if (rules.length) return { rules, source: 'rules.json' };
+  } catch (e) { console.warn(`  (rules.json not used: ${e.message}; using built-in rules)`); }
+  return { rules: BUILTIN_RULES, source: 'built-in' };
+}
+const LOADED = loadRules();
+const RULES = LOADED.rules;
+export const RULES_SOURCE = LOADED.source;
 function heuristic({ instruction, to, maxLen }) {
   const reasons = RULES.filter(([re]) => re.test(instruction)).map(([, why]) => why);
   if (instruction.length > (maxLen || 500)) reasons.push('unusually long instruction');
@@ -178,6 +203,22 @@ const cloudflare = {
 };
 export const PROVIDERS = { gemini, groq, openrouter, cloudflare };
 
+// ---------- Status file (read by the dashboard; never contains keys) ----------
+const STATUS_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '.ai-status.json');
+const readStatus = () => { try { return JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8')); } catch { return {}; } };
+export function noteStatus(name, patch) {
+  const all = readStatus(); all[name] = { ...(all[name] || {}), ...patch };
+  try { fs.writeFileSync(STATUS_FILE, JSON.stringify(all)); } catch { /* read-only disk: ignore */ }
+}
+for (const [name, p] of Object.entries(PROVIDERS)) {
+  const run = p.run.bind(p);
+  p.run = async (...args) => {
+    const t0 = Date.now();
+    try { const v = await run(...args); noteStatus(name, { state: 'ok', at: Date.now(), ms: Date.now() - t0, model: v.model, error: '', until: 0 }); return v; }
+    catch (e) { noteStatus(name, { state: [401, 403].includes(e.status) ? 'rejected' : 'failing', at: Date.now(), ms: Date.now() - t0, error: e.name === 'TimeoutError' ? 'timed out' : brief(e.message) }); throw e; }
+  };
+}
+
 // ---------- Chain: cooldowns, auth failures, fallback ----------
 const state = {};
 async function runChain(input, tried, task = SCREEN_TASK) {
@@ -194,6 +235,7 @@ async function runChain(input, tried, task = SCREEN_TASK) {
     } catch (e) {
       if (e.status === 401 || e.status === 403) st.dead = true;
       else st.until = Date.now() + (Math.min(Number(e.retryAfter) || 60, 300)) * 1000;
+      noteStatus(name, { until: st.until || 0 });
       tried.push(`${name}: ${e.name === 'TimeoutError' ? 'timed out' : e.message}`);
     }
   }
